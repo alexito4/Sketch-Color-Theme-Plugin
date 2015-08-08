@@ -14,3 +14,8 @@ Example Objective-C code generated:
 - [ ] Generate Theme.h
 - [ ] Generate ThemeProtocol.h
 - ...
+
+## Author
+
+Alejandro Martinez, alexito4@gmail.com
+[http://alejandromp.com](http://alejandromp.com)
