@@ -16,8 +16,8 @@
     ],
   },
   "identifier" : "com.alejandromp.sketch.colortheme",
-  "version" : "1.0",
-  "description" : "Example Sketch Plugin using resources from within the bundle and a library script.",
-  "authorEmail" : "mail@example.com",
+  "version" : "0.1",
+  "description" : "Sketch plugin that generates Objective-C Color Theme files.",
+  "authorEmail" : "alexito4@gmail.com,
   "name" : "Color Theme"
 }
