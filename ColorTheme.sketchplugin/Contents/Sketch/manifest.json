@@ -1,0 +1,23 @@
+{
+  "author" : "Alejandro Martínez",
+  "commands" : [
+    {
+      "script" : "script.cocoascript",
+      "handler" : "onRun",
+      "shortcut" : "",
+      "name" : "Color Theme",
+      "identifier" : "colortheme"
+    },
+  ],
+  "menu": {
+    "isRoot": true,
+    "items": [
+      "colortheme",
+    ],
+  },
+  "identifier" : "com.alejandromp.sketch.colortheme",
+  "version" : "1.0",
+  "description" : "Example Sketch Plugin using resources from within the bundle and a library script.",
+  "authorEmail" : "mail@example.com",
+  "name" : "Color Theme"
+}

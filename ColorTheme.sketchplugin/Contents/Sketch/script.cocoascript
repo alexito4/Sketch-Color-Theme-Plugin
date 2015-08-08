@@ -1,0 +1,312 @@
+@import "library.cocoascript";
+
+////////
+// From https://github.com/GeertWille/sketch-to-xcode-assets-catalog
+
+var environ = [[NSProcessInfo processInfo] environment],
+    in_sandbox= (nil != [environ objectForKey:"APP_SANDBOX_CONTAINER_ID"])
+
+if (in_sandbox) {
+    print("We’re sandboxed: here be dragons")
+}
+
+AppSandbox = function(){ }
+AppSandbox.prototype.authorize = function(path, callback){
+    log("AppSandbox.authorize("+path+")")
+    var success = false
+
+    if (in_sandbox) {
+        var url = [[[NSURL fileURLWithPath:path] URLByStandardizingPath] URLByResolvingSymlinksInPath],
+            allowedUrl = false,
+            // Key for bookmark data:
+            bd_key = this.key_for_url(url);
+
+        this.clear_key(bd_key); // For debug only, this clears the key we're looking for :P
+
+        // Bookmark
+        var bookmark = this.get_data_for_key(bd_key)
+        if (!bookmark) {
+          log("– No bookmark found, let's create one")
+          var target = this.file_picker(url)
+          bookmark = [target bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+                          includingResourceValuesForKeys:nil
+                          relativeToURL:nil
+                          error:{}]
+          // Store bookmark
+          this.set_data_for_key(bookmark,bd_key)
+        } else {
+            log("– Bookmark found")
+        }
+        log("  " + bookmark)
+
+        // Thanks to @joethephish for this pointer (pun totally intended)
+        var bookmarkDataIsStalePtr = MOPointer.alloc().init(),
+            allowedURL = [NSURL URLByResolvingBookmarkData:bookmark
+                                options:NSURLBookmarkResolutionWithSecurityScope
+                                relativeToURL:nil
+                                bookmarkDataIsStale:bookmarkDataIsStalePtr
+                                error:{}];
+
+        if (bookmarkDataIsStalePtr.value() != 0) {
+            log("— Bookmark data is stale")
+            log(bookmarkDataIsStalePtr.value())
+        }
+
+        if (allowedURL) {
+            success = true
+        }
+    } else {
+        success = true
+    }
+
+    // [allowedUrl startAccessingSecurityScopedResource]
+    callback.call(this, success)
+    // [allowedUrl stopAccessingSecurityScopedResource]
+}
+
+AppSandbox.prototype.key_for_url = function(url){
+    return "bd_" + [url absoluteString]
+}
+AppSandbox.prototype.clear_key = function(key){
+    var def = [NSUserDefaults standardUserDefaults];
+    [def setObject:nil forKey:key];
+}
+AppSandbox.prototype.file_picker = function(url){
+    // Panel
+    var openPanel = [NSOpenPanel openPanel]
+
+    [openPanel setTitle:"Sketch Authorization"]
+    [openPanel setMessage:"Due to Apple's Sandboxing technology, Sketch needs your permission to write to this folder."];
+    [openPanel setPrompt:"Authorize"];
+
+    [openPanel setCanCreateDirectories:false]
+    [openPanel setCanChooseFiles:true]
+    [openPanel setCanChooseDirectories:true]
+    [openPanel setAllowsMultipleSelection:false]
+    [openPanel setShowsHiddenFiles:false]
+    [openPanel setExtensionHidden:false]
+
+    [openPanel setDirectoryURL:url]
+
+    var openPanelButtonPressed = [openPanel runModal]
+    if (openPanelButtonPressed == NSFileHandlingPanelOKButton) {
+        allowedUrl = [openPanel URL]
+    }
+    return allowedUrl
+}
+
+AppSandbox.prototype.get_data_for_key = function(key){
+    var def = [NSUserDefaults standardUserDefaults];
+    return [def objectForKey:key];
+}
+AppSandbox.prototype.set_data_for_key = function(data,key){
+    var defaults = [NSUserDefaults standardUserDefaults],
+      default_values = [NSMutableDictionary dictionary];
+
+    [default_values setObject:data forKey:key];
+    [defaults registerDefaults:default_values];
+}
+
+var getDirFromPrompt = function(doc) {
+    var panel = [NSOpenPanel openPanel];
+    [panel setMessage:"Where do you want to place your assets?"];
+    [panel setCanChooseDirectories: true];
+    [panel setCanChooseFiles: false];
+    [panel setCanCreateDirectories: true];
+    var defaultDir = [[doc fileURL] URLByDeletingLastPathComponent];
+    [panel setDirectoryURL:defaultDir];
+
+
+    if ([panel runModal] == NSOKButton) {
+        var message = [panel filename];
+        return message;
+    }
+}
+
+var writeTextToFile = function(text, path) {
+    var result = false;
+    if (typeof path !== 'string')
+        return result;
+
+    // create a NSString object from the given text
+    var nsstring = NSString.stringWithUTF8String(text);
+
+    // use the writeToFile method of the NSString object to write the text to the given URL
+    result = [nsstring writeToFile:path atomically:1 encoding:NSUTF8StringEncoding error:null];
+
+    if (!result) {
+        result = false;
+    } else {
+        result = true;
+    }
+
+    return result;
+}
+
+/////////////
+
+// General utils
+var GeneralUtils = (function() {
+  return {
+    alert: function(message) {
+      var app = [NSApplication sharedApplication];
+      [app displayDialog: message];
+    }
+  }
+}());
+
+// Generate Objective-C code from Sketch objects
+var Objc = (function() {
+  return {
+    // Returns the string that creates a UIColor from `color`.
+    uiColor: function(color) {
+      var red = color.red().toFixed(3).toString() + "f";
+      var green = color.green().toFixed(3).toString() + "f";
+      var blue = color.blue().toFixed(3).toString() + "f";
+      var alpha = color.alpha().toFixed(3).toString() + "f";
+
+      return "[UIColor colorWithRed:" + red + " green:" + green + " blue:" + blue + " alpha:" + alpha + "];";
+    },
+    methodSignature: function(prefix, name) {
+      return "- (UIColor *)" + prefix + name;
+    }
+  }
+}());
+
+// General Sketch related functions
+var SKUtils = (function() {
+  return {
+    fillColorForLayer: function(layer) {
+      var style = layer.style();
+      var fill = style.fills().array()[0];
+      return fill.color();
+    }
+  }
+}());
+
+// Functions that proecss the Sketch selection to retreive the colors.
+var SKProcesor = (function() {
+
+  var processColorRow = function(colorRow) {
+    var layers = [colorRow layers].array();
+
+    var colorName = undefined;
+    var color = undefined;
+
+    var loop = [layers objectEnumerator];
+    while (layer = [loop nextObject]) {
+      var type = layer.class()
+
+      if (type == "MSTextLayer") {
+        if (colorName == undefined) {
+          colorName = layer.name();
+        }
+      } else if (type == "MSShapeGroup") {
+        color = SKUtils.fillColorForLayer(layer)
+      }
+    }
+
+    return {
+      name: colorName,
+      color: color
+    }
+  };
+
+  var processSection = function(section) {
+    var sectionName = section.name()
+
+    var colors = [];
+    // Row -> Colors
+    var colorRows = [section layers].array();
+    var loop = [colorRows objectEnumerator]
+    while (layer = [loop nextObject]) {
+      var color = processColorRow(layer)
+      colors.push(color)
+    }
+    return {
+      name: sectionName,
+      colors: colors
+    }
+  };
+
+  var getSectionsFromSelection = function(selection) {
+    if ([selection count] == 0) {
+      GeneralUtils.alert('NOTHING SELECTED!')
+      return;
+    }
+
+    var sections = [];
+
+    var loop = [selection objectEnumerator]
+    while (group = [loop nextObject]) {
+      var section = processSection(group)
+      sections.push(section)
+      // log(section.name + ": " + section.colors)
+    }
+
+    return sections;
+  };
+
+  return {
+    // colorGroup is a Group that contains the sublayers that define a color
+    // a Row
+    processColorRow: processColorRow,
+
+    // section is a Section that groups different colors by topic
+    processSection: processSection,
+
+    getSectionsFromSelection: getSectionsFromSelection
+  }
+}());
+
+var onRun = function(context) {
+  // Context is a dictionary containing a reference to the document,
+  // the current selection, the plugin, curren URL and more.
+
+  var doc = context.document; // the current document (MSDocument)
+  var plugin = context.plugin; // the plugin (MSPluginBundle)
+  var page = [doc currentPage]; // the current page (MSPage)
+
+  var selection = context.selection;
+
+  var sections = SKProcesor.getSectionsFromSelection(selection)
+
+  if (sections != undefined) {
+
+    var filePath = [plugin urlForResourceNamed:"ThemeTemplate.m"];
+    var template = NSString.stringWithContentsOfFile(filePath)
+    // GeneralUtils.alert(template);
+
+    var newLine = "\n";
+    var gen = "";
+
+    var section = sections[0]
+    for (var si in sections) {
+      var section = sections[si]
+
+      gen += "#pragma mark - " + section.name
+      gen += newLine
+      gen += newLine
+
+      for (var i in section.colors) {
+        var color = section.colors[i]
+        gen += Objc.methodSignature("", color.name)
+        gen += newLine
+        gen += "{"
+        gen += newLine
+        gen += "  return " + Objc.uiColor(color.color)
+        gen += newLine
+        gen += "}"
+        gen += newLine
+        gen += newLine
+      }
+    }
+
+    var res = template.replace("{{implementation}}", gen);
+    // GeneralUtils.alert(res);
+
+    var baseDir = getDirFromPrompt(doc);
+    writeTextToFile(res, baseDir + "/Theme.m")
+  }
+
+};
