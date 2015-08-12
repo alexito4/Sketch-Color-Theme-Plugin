@@ -11,8 +11,8 @@ Example Objective-C code generated:
 
 ## TODO:
 
-- [ ] Generate Theme.h
-- [ ] Generate ThemeProtocol.h
+- [x] Generate Theme.h
+- [x] Generate ThemeProtocol.h
 - ...
 
 ## Author
