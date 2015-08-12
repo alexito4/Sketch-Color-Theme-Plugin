@@ -1,6 +1,8 @@
 
-@interface Theme : NSObject
+#import "ThemeProtocol.h"
 
-{{implementation}}
+@interface Theme : NSObject <ThemeProtocol>
+
+{{content}}
 
 @end

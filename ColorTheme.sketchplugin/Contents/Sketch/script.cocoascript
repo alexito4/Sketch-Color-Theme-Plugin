@@ -157,19 +157,68 @@ var GeneralUtils = (function() {
 
 // Generate Objective-C code from Sketch objects
 var Objc = (function() {
-  return {
-    // Returns the string that creates a UIColor from `color`.
-    uiColor: function(color) {
-      var red = color.red().toFixed(3).toString() + "f";
-      var green = color.green().toFixed(3).toString() + "f";
-      var blue = color.blue().toFixed(3).toString() + "f";
-      var alpha = color.alpha().toFixed(3).toString() + "f";
 
-      return "[UIColor colorWithRed:" + red + " green:" + green + " blue:" + blue + " alpha:" + alpha + "];";
-    },
-    methodSignature: function(prefix, name) {
-      return "- (UIColor *)" + prefix + name;
+  // Returns the string that creates a UIColor from `color`.
+  var uiColor = function(color) {
+    var red = color.red().toFixed(3).toString() + "f";
+    var green = color.green().toFixed(3).toString() + "f";
+    var blue = color.blue().toFixed(3).toString() + "f";
+    var alpha = color.alpha().toFixed(3).toString() + "f";
+
+    return "[UIColor colorWithRed:" + red + " green:" + green + " blue:" + blue + " alpha:" + alpha + "];";
+  };
+
+  // Returns the UIColor signature.
+  var methodSignature = function(prefix, name) {
+    return "- (UIColor *)" + prefix + name;
+  };
+
+  // config:
+  // {
+  //   path, // path to export the file
+  //   template, // template to replace the content with the stirng "{{content}}"
+  //   implementation // is a .h or a .m
+  // }
+  var SectionsExporter = function(config, sections) {
+    var newLine = "\n";
+    var gen = "";
+
+    for (var si in sections) {
+      var section = sections[si]
+
+      gen += "#pragma mark - " + section.name
+      gen += newLine
+      gen += newLine
+
+      for (var i in section.colors) {
+        var color = section.colors[i]
+
+        gen += methodSignature("", color.name)
+        if (config.implementation == false) {
+            gen += ";"
+        } else {
+          gen += newLine
+          gen += "{"
+          gen += newLine
+          gen += "  return " + uiColor(color.color)
+          gen += newLine
+          gen += "}"
+          gen += newLine
+        }
+        gen += newLine
+      }
+
+      if (config.implementation == false) {
+        gen += newLine
+      }
     }
+
+    var res = config.template.replace("{{content}}", gen);
+    writeTextToFile(res, config.path)
+  };
+
+  return {
+    exporter: SectionsExporter
   }
 }());
 
@@ -231,7 +280,6 @@ var SKProcesor = (function() {
 
   var getSectionsFromSelection = function(selection) {
     if ([selection count] == 0) {
-      GeneralUtils.alert('NOTHING SELECTED!')
       return;
     }
 
@@ -270,62 +318,49 @@ var onRun = function(context) {
   var selection = context.selection;
 
   var sections = SKProcesor.getSectionsFromSelection(selection)
-
-  if (sections != undefined) {
-
-    var headerFilePath = [plugin urlForResourceNamed:"ThemeTemplate.h"];
-    var headerTemplate = NSString.stringWithContentsOfFile(headerFilePath)
-
-    var impFilePath = [plugin urlForResourceNamed:"ThemeTemplate.m"];
-    var impTemplate = NSString.stringWithContentsOfFile(impFilePath)
-
-    // GeneralUtils.alert(headerTemplate);
-    // GeneralUtils.alert(impTemplate);
-
-    var newLine = "\n";
-    var headerGen = "";
-    var impGen = "";
-
-    var section = sections[0]
-    for (var si in sections) {
-      var section = sections[si]
-
-      headerGen += newLine
-      headerGen += "#pragma mark - " + section.name
-      headerGen += newLine
-      headerGen += newLine
-
-      impGen += "#pragma mark - " + section.name
-      impGen += newLine
-      impGen += newLine
-
-      for (var i in section.colors) {
-        var color = section.colors[i]
-
-        headerGen += Objc.methodSignature("", color.name) + ";"
-        headerGen += newLine
-
-        impGen += Objc.methodSignature("", color.name)
-        impGen += newLine
-        impGen += "{"
-        impGen += newLine
-        impGen += "  return " + Objc.uiColor(color.color)
-        impGen += newLine
-        impGen += "}"
-        impGen += newLine
-        impGen += newLine
-      }
-    }
-
-    var headerRes = headerTemplate.replace("{{implementation}}", headerGen);
-    var impRes = impTemplate.replace("{{implementation}}", impGen);
-
-    // GeneralUtils.alert(headerRes);
-    // GeneralUtils.alert(impRes);
-
-    var baseDir = getDirFromPrompt(doc);
-    writeTextToFile(headerRes, baseDir + "/Theme.h")
-    writeTextToFile(impRes, baseDir + "/Theme.m")
+  if (sections == undefined) {
+    GeneralUtils.alert('NOTHING SELECTED!\nSelect the sections that you want to export.')
+    return;
   }
+
+  var loadTemplateWithName = function(name) {
+    var filePath = [plugin urlForResourceNamed:name];
+    var template = NSString.stringWithContentsOfFile(filePath);
+    return template;
+  };
+
+  // configs: Array with the config options to export each file.
+  // sections: Array with the sections of colors to export.
+  // exporter:
+  //    (config, sections) -> ()
+  //    Function that exports the sections using each config.
+  var exportTheme = function(configs, sections, exporter) {
+
+    for (var ci in configs) {
+      var config = configs[ci];
+
+      exporter(config, sections);
+    }
+  };
+
+  var baseDir = getDirFromPrompt(doc);
+  var toExport = [
+    {
+      path: baseDir + "/" + "ThemeProtocol.h",
+      template: loadTemplateWithName("ThemeProtocolTemplate.h"),
+      implementation: false
+    },
+    {
+      path: baseDir + "/" + "Theme.h",
+      template: loadTemplateWithName("ThemeTemplate.h"),
+      implementation: false
+    },
+    {
+      path: baseDir + "/" + "Theme.m",
+      template: loadTemplateWithName("ThemeTemplate.m"),
+      implementation: true
+    }
+  ];
+  exportTheme(toExport, sections, Objc.exporter);
 
 };

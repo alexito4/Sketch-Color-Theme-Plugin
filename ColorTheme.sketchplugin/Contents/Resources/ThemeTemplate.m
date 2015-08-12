@@ -3,6 +3,6 @@
 
 @implementation Theme
 
-{{implementation}}
+{{content}}
 
 @end
