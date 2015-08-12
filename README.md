@@ -17,6 +17,8 @@ Objective-C code generated:
 
 - [x] Generate Theme.h
 - [x] Generate ThemeProtocol.h
+- [ ] Specify the layers structure required.
+- [ ] Add usage instructions.
 - ...
 
 ## Author
