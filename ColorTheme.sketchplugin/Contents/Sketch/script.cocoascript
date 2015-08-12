@@ -273,40 +273,59 @@ var onRun = function(context) {
 
   if (sections != undefined) {
 
-    var filePath = [plugin urlForResourceNamed:"ThemeTemplate.m"];
-    var template = NSString.stringWithContentsOfFile(filePath)
-    // GeneralUtils.alert(template);
+    var headerFilePath = [plugin urlForResourceNamed:"ThemeTemplate.h"];
+    var headerTemplate = NSString.stringWithContentsOfFile(headerFilePath)
+
+    var impFilePath = [plugin urlForResourceNamed:"ThemeTemplate.m"];
+    var impTemplate = NSString.stringWithContentsOfFile(impFilePath)
+
+    // GeneralUtils.alert(headerTemplate);
+    // GeneralUtils.alert(impTemplate);
 
     var newLine = "\n";
-    var gen = "";
+    var headerGen = "";
+    var impGen = "";
 
     var section = sections[0]
     for (var si in sections) {
       var section = sections[si]
 
-      gen += "#pragma mark - " + section.name
-      gen += newLine
-      gen += newLine
+      headerGen += newLine
+      headerGen += "#pragma mark - " + section.name
+      headerGen += newLine
+      headerGen += newLine
+
+      impGen += "#pragma mark - " + section.name
+      impGen += newLine
+      impGen += newLine
 
       for (var i in section.colors) {
         var color = section.colors[i]
-        gen += Objc.methodSignature("", color.name)
-        gen += newLine
-        gen += "{"
-        gen += newLine
-        gen += "  return " + Objc.uiColor(color.color)
-        gen += newLine
-        gen += "}"
-        gen += newLine
-        gen += newLine
+
+        headerGen += Objc.methodSignature("", color.name) + ";"
+        headerGen += newLine
+
+        impGen += Objc.methodSignature("", color.name)
+        impGen += newLine
+        impGen += "{"
+        impGen += newLine
+        impGen += "  return " + Objc.uiColor(color.color)
+        impGen += newLine
+        impGen += "}"
+        impGen += newLine
+        impGen += newLine
       }
     }
 
-    var res = template.replace("{{implementation}}", gen);
-    // GeneralUtils.alert(res);
+    var headerRes = headerTemplate.replace("{{implementation}}", headerGen);
+    var impRes = impTemplate.replace("{{implementation}}", impGen);
+
+    // GeneralUtils.alert(headerRes);
+    // GeneralUtils.alert(impRes);
 
     var baseDir = getDirFromPrompt(doc);
-    writeTextToFile(res, baseDir + "/Theme.m")
+    writeTextToFile(headerRes, baseDir + "/Theme.h")
+    writeTextToFile(impRes, baseDir + "/Theme.m")
   }
 
 };
